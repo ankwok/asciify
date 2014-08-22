@@ -3,6 +3,7 @@ import Image
 import ImageDraw
 import ImageFont
 import string
+import argparse
 
 ASPECT_RATIO = 1.75
 
@@ -42,7 +43,7 @@ def get_char_densities():
     printable.add(' ')
     printable = ''.join(printable)
 
-    font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf', 144)
+    font = ImageFont.truetype('DejaVuSansMono.ttf', 144)
 
     tmp_img = Image.new('RGB', (1, 1))
     draw = ImageDraw.Draw(tmp_img)
@@ -68,21 +69,34 @@ def get_char_densities():
 
     return chars, masses
 
-def to_ascii(img, chars, masses):
+def get_ascii(img, chars, masses):
     delta = masses[1] - masses[0]
     masses = normalize(np.hstack([-delta, masses]))[1:]
     bins = np.digitize(img.ravel(), masses, right=True).reshape(img.shape)
     chars = np.array(chars)
-    for row in bins:
-        print ''.join(chars[row])
+    ascii_art = [''.join(chars[row]) for row in bins]
+    return ascii_art
+
+def asciify(img, linewidth):
+    chars, masses = get_char_densities()
+    img = downsample(to_grayscale(img), linewidth)
+    img = normalize(to_array(img))
+    ascii_art = get_ascii(img, chars, masses)
+    return ascii_art
 
 def main():
-    chars, masses = get_char_densities()
-    print masses
-    img = Image.open('me.jpg')
-    img = downsample(to_grayscale(img), 80)
-    img = normalize(to_array(img))
-    to_ascii(img, chars, masses)
+    parser = argparse.ArgumentParser(description=
+        """
+        Make ASCII art!
+        """)
+    parser.add_argument('-w', '--width', type=int, dest='width', default=80,
+        help='ASCII image linewidth, default 80')
+    parser.add_argument('image_file', help='Path to image file')
+    args = parser.parse_args()
+
+    img = Image.open(args.image_file)
+    ascii_art = asciify(img, args.width)
+    print '\n'.join(ascii_art)
 
 if __name__ == '__main__':
     main()
