@@ -6,6 +6,7 @@ import string
 import argparse
 
 ASPECT_RATIO = 1.75
+WHITE_THRESHOLD = 63
 
 def to_array(img):
     width, height = img.size
@@ -16,10 +17,11 @@ def to_array(img):
     else:
         n_channels = 4
 
-    img = np.array(list(img.getdata())).T
+    img = np.array(list(img.getdata()))
     if n_channels == 1:
         img = img.reshape((height, width))
     else:
+        img = img.T
         img = img.reshape((n_channels, height, width))
     return img
 
@@ -54,13 +56,12 @@ def get_char_densities():
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
     draw.text((0, 0), printable, font=font)
-
-    img = to_array(to_grayscale(img))
+    img_arr = to_array(to_grayscale(img))
 
     masses = []
     for i in xrange(len(printable)):
-        char = img[:, i*char_width:(i+1)*char_width]
-        mask = char > 63
+        char = img_arr[:, i*char_width:(i+1)*char_width]
+        mask = char > WHITE_THRESHOLD
         mass = mask.sum()
         masses.append((printable[i], mass))
     masses.sort(key = lambda x: x[1])
