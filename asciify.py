@@ -61,15 +61,12 @@ def get_char_densities():
     draw.text((0, 0), printable, font=font)
     img_arr = to_array(to_grayscale(img))
 
-    masses = []
-    for i in xrange(len(printable)):
-        char = img_arr[:, i*char_width:(i+1)*char_width]
-        mask = char > WHITE_THRESHOLD
-        mass = mask.sum()
-        masses.append((printable[i], mass))
+    mask = img_arr > WHITE_THRESHOLD
+    tmp_masses = mask.sum(axis=0).reshape((len(printable), char_width))
+    tmp_masses = normalize(tmp_masses.sum(axis=1))
+    masses = zip(printable, tmp_masses)
     masses.sort(key = lambda x: x[1])
-    normalizer = float(max(masses, key = lambda x: x[1])[1])
-    chars, masses = zip(*[(c, val / normalizer) for c, val in masses])
+    chars, masses = zip(*masses)
 
     return chars, masses
 
@@ -82,14 +79,13 @@ def get_ascii(img, chars, masses):
     return ascii_art
 
 def get_edges(gray_img):
-    gray_img = gray_img.filter(ImageFilter.GaussianBlur(radius=3))
     img_arr = to_array(gray_img)
+    img_arr = ndimage.gaussian_filter(img_arr, 3, order=0)
     grad_x = ndimage.sobel(img_arr, axis=1)
     grad_y = ndimage.sobel(img_arr, axis=0)
     grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
     edge_arr = np.asarray(np.round(normalize(grad_magnitude) * 255), dtype=np.int8, order='C')
     edges = Image.fromarray(edge_arr, mode='L')
-    edges.save('edges.png', 'PNG')
     return edges
 
 def asciify(img, linewidth):
