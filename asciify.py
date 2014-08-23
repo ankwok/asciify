@@ -1,7 +1,10 @@
 import numpy as np
+import scipy.signal as signal
+import scipy.ndimage as ndimage
 import Image
 import ImageDraw
 import ImageFont
+import ImageFilter
 import string
 import argparse
 
@@ -23,7 +26,7 @@ def to_array(img):
     else:
         img = img.T
         img = img.reshape((n_channels, height, width))
-    return img
+    return np.asarray(img, dtype=np.float64)
 
 def to_grayscale(img):
     return img.convert('L')
@@ -78,9 +81,22 @@ def get_ascii(img, chars, masses):
     ascii_art = [''.join(chars[row]) for row in bins]
     return ascii_art
 
+def get_edges(gray_img):
+    gray_img = gray_img.filter(ImageFilter.GaussianBlur(radius=3))
+    img_arr = to_array(gray_img)
+    grad_x = ndimage.sobel(img_arr, axis=1)
+    grad_y = ndimage.sobel(img_arr, axis=0)
+    grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+    edge_arr = np.asarray(np.round(normalize(grad_magnitude) * 255), dtype=np.int8, order='C')
+    edges = Image.fromarray(edge_arr, mode='L')
+    edges.save('edges.png', 'PNG')
+    return edges
+
 def asciify(img, linewidth):
     chars, masses = get_char_densities()
-    img = downsample(to_grayscale(img), linewidth)
+    img = to_grayscale(img)
+    img = get_edges(img)
+    img = downsample(img, linewidth)
     img = normalize(to_array(img))
     ascii_art = get_ascii(img, chars, masses)
     return ascii_art
