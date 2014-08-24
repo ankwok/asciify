@@ -1,7 +1,6 @@
 import sys
 import os
 import numpy as np
-import scipy.signal as signal
 import scipy.ndimage as ndimage
 import Image
 import ImageDraw
@@ -48,6 +47,20 @@ def normalize(img_arr):
     img_arr = (img_arr - min_val) / delta
     return img_arr
 
+def get_edges(gray_img):
+    img_arr = to_array(gray_img)
+    stdev = min(gray_img.size) * 0.003
+    if stdev >= 1:
+        img_arr = ndimage.gaussian_filter(img_arr, stdev, order=0)
+    grad_x = ndimage.sobel(img_arr, axis=1)
+    grad_y = ndimage.sobel(img_arr, axis=0)
+    grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
+
+    edge_arr = np.empty(img_arr.shape, dtype=np.uint8)
+    (255 * normalize(grad_magnitude)).round(out=edge_arr)
+    edges = Image.fromarray(edge_arr, mode='L')
+    return edges
+
 def get_char_densities():
     density_file = 'char_densities.pkl'
     try:
@@ -93,20 +106,6 @@ def get_ascii(img, chars, masses):
     chars = np.array(chars)
     ascii_art = [''.join(chars[row]) for row in bins]
     return ascii_art
-
-def get_edges(gray_img):
-    img_arr = to_array(gray_img)
-    stdev = min(gray_img.size) * 0.003
-    if stdev >= 1:
-        img_arr = ndimage.gaussian_filter(img_arr, stdev, order=0)
-    grad_x = ndimage.sobel(img_arr, axis=1)
-    grad_y = ndimage.sobel(img_arr, axis=0)
-    grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
-
-    edge_arr = np.empty(img_arr.shape, dtype=np.uint8)
-    (255 * normalize(grad_magnitude)).round(out=edge_arr)
-    edges = Image.fromarray(edge_arr, mode='L')
-    return edges
 
 def asciify(img, linewidth):
     chars, masses = get_char_densities()
