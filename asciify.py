@@ -1,12 +1,14 @@
+import sys
+import os
 import numpy as np
 import scipy.signal as signal
 import scipy.ndimage as ndimage
 import Image
 import ImageDraw
 import ImageFont
-import ImageFilter
 import string
 import argparse
+import cPickle
 
 ASPECT_RATIO = 1.75
 WHITE_THRESHOLD = 63
@@ -20,13 +22,14 @@ def to_array(img):
     else:
         n_channels = 4
 
-    img = np.array(list(img.getdata()))
+    img = np.ndarray(shape=(width * height * n_channels, ), buffer=img.tobytes(), dtype=np.uint8)
+    img = np.asarray(img, dtype=np.float64)
     if n_channels == 1:
         img = img.reshape((height, width))
     else:
         img = img.T
         img = img.reshape((n_channels, height, width))
-    return np.asarray(img, dtype=np.float64)
+    return img 
 
 def to_grayscale(img):
     return img.convert('L')
@@ -39,11 +42,21 @@ def downsample(img, new_width):
 def normalize(img_arr):
     min_val = img_arr.min()
     max_val = img_arr.max()
+    if min_val == max_val:
+        return img_arr
     delta = float(max_val - min_val)
     img_arr = (img_arr - min_val) / delta
     return img_arr
 
 def get_char_densities():
+    density_file = 'char_densities.pkl'
+    try:
+        with open(density_file, 'r') as f:
+            chars, masses = cPickle.load(f)
+            return chars, masses
+    except Exception:
+        print >> sys.stderr, 'Creating character density file'
+
     printable = set(string.printable) - set(string.whitespace)
     printable.add(' ')
     printable = ''.join(printable)
@@ -68,6 +81,9 @@ def get_char_densities():
     masses.sort(key = lambda x: x[1])
     chars, masses = zip(*masses)
 
+    with open(density_file, 'wb') as f:
+        cPickle.dump((chars, masses), f, cPickle.HIGHEST_PROTOCOL)
+
     return chars, masses
 
 def get_ascii(img, chars, masses):
@@ -80,11 +96,15 @@ def get_ascii(img, chars, masses):
 
 def get_edges(gray_img):
     img_arr = to_array(gray_img)
-    img_arr = ndimage.gaussian_filter(img_arr, 3, order=0)
+    stdev = min(gray_img.size) * 0.003
+    if stdev >= 1:
+        img_arr = ndimage.gaussian_filter(img_arr, stdev, order=0)
     grad_x = ndimage.sobel(img_arr, axis=1)
     grad_y = ndimage.sobel(img_arr, axis=0)
     grad_magnitude = np.sqrt(grad_x**2 + grad_y**2)
-    edge_arr = np.asarray(np.round(normalize(grad_magnitude) * 255), dtype=np.int8, order='C')
+
+    edge_arr = np.empty(img_arr.shape, dtype=np.uint8)
+    (255 * normalize(grad_magnitude)).round(out=edge_arr)
     edges = Image.fromarray(edge_arr, mode='L')
     return edges
 
